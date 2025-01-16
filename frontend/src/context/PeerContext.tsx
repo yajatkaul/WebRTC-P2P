@@ -10,20 +10,22 @@ export const usePeerContext = () => {
 
 export const PeerContextProvider = ({ children }) => {
   const [remoteStream, setRemoteStream] = useState<MediaStream>();
-  const peer = useMemo(
-    () =>
-      new RTCPeerConnection({
-        iceServers: [
-          {
-            urls: [
-              "stun:stun.l.google.com:19302",
-              "stun:global.stun.twilio.com:3478",
-            ],
-          },
-        ],
-      }),
-    []
-  );
+  const [peer, setPeer] = useState();
+
+  useEffect(() => {
+    const peerInit = new RTCPeerConnection({
+      iceServers: [
+        {
+          urls: [
+            "stun:stun.l.google.com:19302",
+            "stun:global.stun.twilio.com:3478",
+          ],
+        },
+      ],
+    });
+
+    setPeer(peerInit);
+  }, []);
 
   const createOffer = async () => {
     const offer = await peer.createOffer();
@@ -49,18 +51,19 @@ export const PeerContextProvider = ({ children }) => {
     }
   };
 
-  const handleTrackEvent = (ev) => {
-    const streams = ev.streams;
-    setRemoteStream(streams[0]);
-  };
-
   useEffect(() => {
-    peer.addEventListener("track", handleTrackEvent);
+    peer?.addEventListener("track", (ev) => {
+      const streams = ev.streams;
+      setRemoteStream(streams[0]);
+    });
 
     return () => {
-      peer.removeEventListener("track", handleTrackEvent);
+      peer?.removeEventListener("track", (ev) => {
+        const streams = ev.streams;
+        setRemoteStream(streams[0]);
+      });
     };
-  }, [handleTrackEvent, peer]);
+  }, [peer]);
 
   return (
     <PeerContext.Provider

@@ -46,8 +46,8 @@ const Page = ({ params }: { params: { roomId: string } }) => {
     };
   }, [handleCallAccepted, handleIncommingCall, handleUserJoined, socket]);
 
-  const handleNegosiation = () => {
-    const localOffer = peer.localDescription;
+  const handleNegosiation = async () => {
+    const localOffer = await peer.createOffer();
     socket.emit("call-user", { emailId: remoteEmailId, offer: localOffer });
   };
 
