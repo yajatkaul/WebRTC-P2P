@@ -109,7 +109,11 @@ const Page = () => {
 
   return (
     <div className="flex h-screen items-center justify-center">
-      {myStream && <button onClick={sendStream}>Send STREAM</button>}
+      {myStream && (
+        <button className="btn" onClick={sendStream}>
+          Send STREAM
+        </button>
+      )}
       <button className="btn" onClick={handleCallUser}>
         Call
       </button>
