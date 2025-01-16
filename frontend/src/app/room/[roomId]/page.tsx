@@ -1,90 +1,120 @@
+//@ts-nocheck
 "use client";
-import { usePeerContext } from "@/context/PeerContext";
 import { useSocketContext } from "@/context/SocketContext";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import ReactPlayer from "react-player";
+import peer from "../../../services/PeerService";
 
-const Page = ({ params }: { params: { roomId: string } }) => {
-  const { socket }: any = useSocketContext();
-  const {
-    peer,
-    createOffer,
-    createAnswer,
-    setRemoteAnswer,
-    sendStream,
-    remoteStream,
-  }: any = usePeerContext();
-
-  const handleUserJoined = async (data: any) => {
-    const { emailId } = data;
-    const offer = await createOffer();
-    socket.emit("call-user", { emailId, offer });
-    setRemoteEmailId(emailId);
-  };
-
-  const handleIncommingCall = async (data: any) => {
-    const { from, offer } = data;
-    const ans = await createAnswer(offer);
-    socket.emit("call-accepted", { emailId: from, ans });
-    setRemoteEmailId(from);
-  };
-
-  const handleCallAccepted = async (data: any) => {
-    const { ans } = data;
-    await setRemoteAnswer(ans);
-  };
-
-  useEffect(() => {
-    socket.on("user-joined", handleUserJoined);
-    socket.on("incomming-call", handleIncommingCall);
-    socket.on("call-accepted", handleCallAccepted);
-
-    return () => {
-      socket.off("user-joined", handleUserJoined);
-      socket.off("incomming-call", handleIncommingCall);
-      socket.on("call-accepted", handleCallAccepted);
-    };
-  }, [handleCallAccepted, handleIncommingCall, handleUserJoined, socket]);
-
-  const handleNegosiation = async () => {
-    const localOffer = await peer.createOffer();
-    socket.emit("call-user", { emailId: remoteEmailId, offer: localOffer });
-  };
-
-  useEffect(() => {
-    peer.addEventListener("negotiationneeded", handleNegosiation);
-    return () => {
-      peer.removeEventListener("negotiationneeded", handleNegosiation);
-    };
-  }, [handleNegosiation, peer]);
-
+const Page = () => {
+  const [remoteSocketId, setRemoteSocketId] = useState();
   const [myStream, setMyStream] = useState<MediaStream>();
-  const [remoteEmailId, setRemoteEmailId] = useState();
+  const [remoteStream, setRemoteStream] = useState<MediaStream>();
+  const { socket }: any = useSocketContext();
 
-  const getUserMediaStream = async () => {
+  const handleUserJoined = ({ email, id }: any) => {
+    setRemoteSocketId(id);
+  };
+
+  const handleIncommingCall = async ({ from, offer }: any) => {
+    setRemoteSocketId(from);
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: true,
       video: true,
     });
     setMyStream(stream);
+    console.log("Incomming Call");
+    const ans = await peer.getAnswer(offer);
+    socket.emit("call:accepted", { to: from, ans });
+  };
+
+  const sendStream = () => {
+    for (const track of myStream?.getTracks()) {
+      peer.peer.addTrack(track, myStream);
+    }
+  };
+
+  const handleCallAccepted = ({ from, ans }: any) => {
+    peer.setLocalDescription(ans);
+    console.log("Call Accepted");
+    sendStream();
+  };
+
+  const handleNegoIncomming = async ({ from, offer }: any) => {
+    const ans = await peer.getAnswer(offer);
+    socket.emit("peer:nego:done", { to: from, ans });
+  };
+
+  const handleNegoFinal = async ({ ans }) => {
+    await peer.setLocalDescription(ans);
+  };
+
+  const handleNegoNeeded = async () => {
+    const offer = await peer.getOffer();
+    socket.emit("peer:nego:needed", { offer, to: remoteSocketId });
   };
 
   useEffect(() => {
-    getUserMediaStream();
-  }, [getUserMediaStream]);
+    peer.peer.addEventListener("negotiationneeded", handleNegoNeeded);
+
+    return () => {
+      peer.peer.removeEventListener("negotiationneeded", handleNegoNeeded);
+    };
+  }, [handleNegoNeeded]);
+
+  const handleCallUser = async () => {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: true,
+      video: true,
+    });
+    const offer = await peer.getOffer();
+    socket.emit("user:call", { to: remoteSocketId, offer });
+    setMyStream(stream);
+  };
+
+  useEffect(() => {
+    const handleTrack = async (ev) => {
+      const remoteStream = ev.streams;
+      setRemoteStream(remoteStream[0]);
+    };
+
+    peer.peer.addEventListener("track", handleTrack);
+
+    return () => {
+      peer.peer.removeEventListener("track", handleTrack);
+    };
+  }, []);
+
+  useEffect(() => {
+    socket.on("user:joined", handleUserJoined);
+    socket.on("incomming:call", handleIncommingCall);
+    socket.on("call:accepted", handleCallAccepted);
+    socket.on("peer:nego:needed", handleNegoIncomming);
+    socket.on("peer:nego:final", handleNegoFinal);
+
+    return () => {
+      socket.off("user:joined", handleUserJoined);
+      socket.off("incomming:call", handleIncommingCall);
+      socket.off("call:accepted", handleCallAccepted);
+      socket.off("peer:nego:needed", handleNegoIncomming);
+      socket.off("peer:nego:final", handleNegoFinal);
+    };
+  }, [
+    socket,
+    handleUserJoined,
+    handleIncommingCall,
+    handleNegoFinal,
+    handleCallAccepted,
+    handleNegoIncomming,
+  ]);
 
   return (
-    <div className="h-screen flex justify-center items-center">
-      <button
-        className="btn"
-        onClick={() => {
-          sendStream(myStream);
-        }}
-      >
-        Send video
+    <div className="flex h-screen items-center justify-center">
+      {myStream && <button onClick={sendStream}>Send STREAM</button>}
+      <button className="btn" onClick={handleCallUser}>
+        Call
       </button>
-      <ReactPlayer url={myStream} playing muted />
-      <ReactPlayer url={remoteStream} playing />
+      {myStream && <ReactPlayer url={myStream} playing muted />}
+      {remoteStream && <ReactPlayer url={remoteStream} playing />}
     </div>
   );
 };
