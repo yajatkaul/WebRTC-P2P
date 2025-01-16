@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { SocketContextProvider } from "@/context/SocketProvider";
+import { SocketContextProvider } from "@/context/SocketContext";
+import { PeerContextProvider } from "@/context/PeerContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -28,7 +29,9 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <SocketContextProvider>{children}</SocketContextProvider>
+        <SocketContextProvider>
+          <PeerContextProvider>{children} </PeerContextProvider>
+        </SocketContextProvider>
       </body>
     </html>
   );

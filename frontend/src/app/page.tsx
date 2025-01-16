@@ -1,5 +1,5 @@
 "use client";
-import { useSocketContext } from "@/context/SocketProvider";
+import { useSocketContext } from "@/context/SocketContext";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -24,7 +24,10 @@ export default function Home() {
 
   useEffect(() => {
     socket.on("joined-room", handleRoomJoined);
-  }, [socket]);
+    return () => {
+      socket.off("joined-room", handleRoomJoined);
+    };
+  }, [socket, handleRoomJoined]);
 
   return (
     <div className="flex flex-col justify-center items-center h-screen gap-2">
